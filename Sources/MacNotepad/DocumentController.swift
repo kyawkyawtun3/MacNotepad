@@ -200,10 +200,7 @@ final class WorkspaceController: ObservableObject {
 
     func closeDocument(id: UUID) {
         guard let index = documents.firstIndex(where: { $0.id == id }) else { return }
-        let documentToClose = documents[index]
-
-        archiveDocumentForRestoreIfNeeded(documentToClose)
-        prepareWindowForSilentTabClose()
+        guard confirmTabClose(at: index) else { return }
 
         if documents.count == 1 {
             documents[index] = EditorDocumentState()
@@ -552,25 +549,31 @@ final class WorkspaceController: ObservableObject {
         }
     }
 
-    private func archiveDocumentForRestoreIfNeeded(_ document: EditorDocumentState) {
-        guard document.isDirty || document.fileURL == nil else { return }
+    private func confirmTabClose(at index: Int) -> Bool {
+        let document = documents[index]
+        guard document.isDirty else { return true }
 
-        AppSessionController.shared.archiveWorkspace(
-            PersistedWorkspaceState(
-                id: UUID(),
-                documents: [persistedDocument(from: document)],
-                selectedDocumentID: document.id,
-                wordWrap: wordWrap,
-                fontName: fontName,
-                fontSize: fontSize,
-                showsStatusBar: showsStatusBar
-            )
-        )
-    }
+        selectedDocumentID = document.id
+        updateCursorStatus(for: document.selectedRange, in: document.text)
+        updateWindowAppearance()
 
-    private func prepareWindowForSilentTabClose() {
-        window?.isDocumentEdited = false
-        window?.representedURL = nil
+        let alert = NSAlert()
+        alert.messageText = "Do you want to save changes to \(document.displayTitle)?"
+        alert.informativeText = "Your changes will be lost if you close this tab without saving."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: "Don't Save")
+
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            save()
+            return !currentDocument.isDirty
+        case .alertThirdButtonReturn:
+            return true
+        default:
+            return false
+        }
     }
 
     private func runEditorScript(_ script: String) {
