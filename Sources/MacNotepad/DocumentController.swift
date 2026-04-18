@@ -200,29 +200,18 @@ final class WorkspaceController: ObservableObject {
 
     func closeDocument(id: UUID) {
         guard let index = documents.firstIndex(where: { $0.id == id }) else { return }
+        let documentToClose = documents[index]
+
+        archiveDocumentForRestoreIfNeeded(documentToClose)
+        prepareWindowForSilentTabClose()
 
         if documents.count == 1 {
-            AppSessionController.shared.archiveWorkspace(snapshotForPersistence())
             documents[index] = EditorDocumentState()
             selectedDocumentID = documents[index].id
             updateCursorStatus(for: currentDocument.selectedRange, in: currentDocument.text)
             updateWindowAppearance()
             persistSessionState()
             return
-        }
-
-        if documents[index].isDirty || documents[index].fileURL == nil {
-            AppSessionController.shared.archiveWorkspace(
-                PersistedWorkspaceState(
-                    id: UUID(),
-                    documents: [persistedDocument(from: documents[index])],
-                    selectedDocumentID: documents[index].id,
-                    wordWrap: wordWrap,
-                    fontName: fontName,
-                    fontSize: fontSize,
-                    showsStatusBar: showsStatusBar
-                )
-            )
         }
 
         documents.remove(at: index)
@@ -561,6 +550,27 @@ final class WorkspaceController: ObservableObject {
         } catch {
             showError("Couldn't save the file.")
         }
+    }
+
+    private func archiveDocumentForRestoreIfNeeded(_ document: EditorDocumentState) {
+        guard document.isDirty || document.fileURL == nil else { return }
+
+        AppSessionController.shared.archiveWorkspace(
+            PersistedWorkspaceState(
+                id: UUID(),
+                documents: [persistedDocument(from: document)],
+                selectedDocumentID: document.id,
+                wordWrap: wordWrap,
+                fontName: fontName,
+                fontSize: fontSize,
+                showsStatusBar: showsStatusBar
+            )
+        )
+    }
+
+    private func prepareWindowForSilentTabClose() {
+        window?.isDocumentEdited = false
+        window?.representedURL = nil
     }
 
     private func runEditorScript(_ script: String) {
