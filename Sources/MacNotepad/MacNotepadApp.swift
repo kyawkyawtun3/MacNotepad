@@ -18,12 +18,11 @@ struct MacNotepadApp: App {
 }
 
 struct WorkspaceRootView: View {
-    @Environment(\.openWindow) private var openWindow
     @StateObject private var workspace: WorkspaceController
 
     init() {
         _workspace = StateObject(
-            wrappedValue: WorkspaceController(snapshot: AppSessionController.shared.consumeNextWorkspace())
+            wrappedValue: WorkspaceController(snapshot: AppSessionController.shared.consumeLaunchWorkspace())
         )
     }
 
@@ -32,12 +31,6 @@ struct WorkspaceRootView: View {
             .environmentObject(workspace)
             .background(WindowAccessor(workspace: workspace))
             .focusedSceneObject(workspace)
-            .task {
-                AppSessionController.shared.bootstrapRemainingWindows(
-                    openWindow: { openWindow(id: $0) },
-                    windowID: mainWindowID
-                )
-            }
     }
 }
 

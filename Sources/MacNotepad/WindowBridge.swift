@@ -6,31 +6,18 @@ final class AppSessionController: ObservableObject {
     static let shared = AppSessionController()
 
     private let sessionStore = SessionStore()
-    private(set) var pendingWorkspaces: [PersistedWorkspaceState]
     private var archivedWorkspaces: [PersistedWorkspaceState]
-    private var bootstrapped = false
+    private var pendingLaunchWorkspace: PersistedWorkspaceState?
 
     private init() {
         let restored = sessionStore.load().workspaces
-        pendingWorkspaces = restored
+        pendingLaunchWorkspace = Self.mergeWorkspaces(restored)
         archivedWorkspaces = []
     }
 
-    func consumeNextWorkspace() -> PersistedWorkspaceState? {
-        guard !pendingWorkspaces.isEmpty else { return nil }
-        return pendingWorkspaces.removeFirst()
-    }
-
-    func bootstrapRemainingWindows(openWindow: (String) -> Void, windowID: String) {
-        guard !bootstrapped else { return }
-        bootstrapped = true
-
-        let extraCount = pendingWorkspaces.count
-        guard extraCount > 0 else { return }
-
-        for _ in 0..<extraCount {
-            openWindow(windowID)
-        }
+    func consumeLaunchWorkspace() -> PersistedWorkspaceState? {
+        defer { pendingLaunchWorkspace = nil }
+        return pendingLaunchWorkspace
     }
 
     func archiveWorkspace(_ snapshot: PersistedWorkspaceState) {
@@ -45,6 +32,46 @@ final class AppSessionController: ObservableObject {
             !live.contains(where: { $0.id == archived.id })
         }
         sessionStore.save(PersistedSessionState(workspaces: live + archived))
+    }
+
+    private static func mergeWorkspaces(_ workspaces: [PersistedWorkspaceState]) -> PersistedWorkspaceState? {
+        let nonEmpty = workspaces.filter { !$0.documents.isEmpty }
+        guard let first = nonEmpty.first else { return nil }
+
+        var mergedDocuments: [PersistedDocumentState] = []
+        var seenDocumentIDs = Set<UUID>()
+
+        for workspace in nonEmpty {
+            for document in workspace.documents {
+                let uniqueID = seenDocumentIDs.insert(document.id).inserted ? document.id : UUID()
+                mergedDocuments.append(
+                    PersistedDocumentState(
+                        id: uniqueID,
+                        fileURL: document.fileURL,
+                        text: document.text,
+                        savedText: document.savedText,
+                        selectedRange: document.selectedRange
+                    )
+                )
+            }
+        }
+
+        guard !mergedDocuments.isEmpty else { return nil }
+
+        let preferredSelectedID =
+            mergedDocuments.contains(where: { $0.id == first.selectedDocumentID })
+            ? first.selectedDocumentID
+            : mergedDocuments[0].id
+
+        return PersistedWorkspaceState(
+            id: first.id,
+            documents: mergedDocuments,
+            selectedDocumentID: preferredSelectedID,
+            wordWrap: first.wordWrap,
+            fontName: first.fontName,
+            fontSize: first.fontSize,
+            showsStatusBar: first.showsStatusBar
+        )
     }
 }
 
