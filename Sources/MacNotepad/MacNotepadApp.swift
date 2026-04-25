@@ -57,6 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         if let workspace = WorkspaceRegistry.shared.workspaces.first {
             urls.forEach { workspace.openDocument(at: $0) }
+            collapseRedundantBlankWindows(keeping: workspace)
         } else {
             pendingOpenFileURLs.append(contentsOf: urls)
         }
@@ -68,6 +69,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let urls = pendingOpenFileURLs
         pendingOpenFileURLs.removeAll()
         urls.forEach { workspace.openDocument(at: $0) }
+        collapseRedundantBlankWindows(keeping: workspace)
+    }
+
+    @MainActor
+    private func collapseRedundantBlankWindows(keeping workspace: WorkspaceController) {
+        for candidate in WorkspaceRegistry.shared.workspaces where candidate !== workspace && candidate.isBlankStartupWorkspace {
+            candidate.closeWindowWithoutArchiving()
+        }
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

@@ -166,6 +166,13 @@ final class WorkspaceController: ObservableObject {
         currentDocument.fileURL?.path ?? "Unsaved document"
     }
 
+    var isBlankStartupWorkspace: Bool {
+        documents.count == 1 &&
+        currentDocument.fileURL == nil &&
+        currentDocument.text.isEmpty &&
+        !currentDocument.isDirty
+    }
+
     private var selectedIndex: Int {
         documents.firstIndex(where: { $0.id == selectedDocumentID }) ?? 0
     }
@@ -520,6 +527,11 @@ final class WorkspaceController: ObservableObject {
         AppSessionController.shared.archiveWorkspace(snapshotForPersistence())
         persistSessionState()
         return true
+    }
+
+    func closeWindowWithoutArchiving() {
+        window?.delegate = nil
+        window?.close()
     }
 
     func confirmAppTermination() -> NSApplication.TerminateReply {
