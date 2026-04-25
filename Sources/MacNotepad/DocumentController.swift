@@ -130,6 +130,19 @@ final class WorkspaceController: ObservableObject {
         NSFont(name: fontName, size: fontSize) ?? .monospacedSystemFont(ofSize: fontSize, weight: .regular)
     }
 
+    var editorCSSFontFamily: String {
+        let primary = fontName.replacingOccurrences(of: "\"", with: "\\\"")
+        return [
+            "\"\(primary)\"",
+            "\"Myanmar Sangam MN\"",
+            "\"Myanmar MN\"",
+            "\"Noto Sans Myanmar\"",
+            "\"Segoe UI\"",
+            "-apple-system",
+            "sans-serif"
+        ].joined(separator: ", ")
+    }
+
     var availableFonts: [String] {
         [
             "Menlo",
@@ -244,7 +257,7 @@ final class WorkspaceController: ObservableObject {
 
     func openDocument(at url: URL) {
         do {
-            let contents = try String(contentsOf: url, encoding: .utf8)
+            let contents = try Self.readTextFile(at: url)
             let document = EditorDocumentState(fileURL: url, text: contents, savedText: contents)
 
             if shouldReuseInitialEmptyDocument {
@@ -334,23 +347,23 @@ final class WorkspaceController: ObservableObject {
     }
 
     func undo() {
-        runEditorScript("document.execCommand('undo');")
+        webView?.undoManager?.undo()
     }
 
     func redo() {
-        runEditorScript("document.execCommand('redo');")
+        webView?.undoManager?.redo()
     }
 
     func cut() {
-        runEditorScript("document.execCommand('cut');")
+        NSApp.sendAction(#selector(NSText.cut(_:)), to: nil, from: nil)
     }
 
     func copy() {
-        runEditorScript("document.execCommand('copy');")
+        NSApp.sendAction(#selector(NSText.copy(_:)), to: nil, from: nil)
     }
 
     func paste() {
-        runEditorScript("document.execCommand('paste');")
+        NSApp.sendAction(#selector(NSText.paste(_:)), to: nil, from: nil)
     }
 
     func deleteSelection() {
@@ -632,5 +645,21 @@ final class WorkspaceController: ObservableObject {
             .replacingOccurrences(of: "\r", with: "\\r")
             .replacingOccurrences(of: "\u{2028}", with: "\\u2028")
             .replacingOccurrences(of: "\u{2029}", with: "\\u2029")
+    }
+
+    private static func readTextFile(at url: URL) throws -> String {
+        var usedEncoding: String.Encoding = .utf8
+        if let value = try? String(contentsOf: url, usedEncoding: &usedEncoding) {
+            return value
+        }
+
+        let data = try Data(contentsOf: url)
+        for encoding in [String.Encoding.utf8, .unicode, .utf16, .utf16LittleEndian, .utf16BigEndian, .windowsCP1252] {
+            if let value = String(data: data, encoding: encoding) {
+                return value
+            }
+        }
+
+        throw CocoaError(.fileReadInapplicableStringEncoding)
     }
 }

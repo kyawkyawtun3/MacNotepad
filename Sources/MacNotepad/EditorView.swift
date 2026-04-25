@@ -20,6 +20,7 @@ struct EditorView: View {
                 ),
                 isWordWrapEnabled: workspace.wordWrap,
                 font: workspace.editorFont,
+                cssFontFamily: workspace.editorCSSFontFamily,
                 onAttach: workspace.attach,
                 onSelectionChange: workspace.updateSelection
             )
@@ -151,6 +152,7 @@ struct TextEditorContainer: NSViewRepresentable {
     @Binding var text: String
     let isWordWrapEnabled: Bool
     let font: NSFont
+    let cssFontFamily: String
     let onAttach: (WKWebView) -> Void
     let onSelectionChange: (NSRange) -> Void
 
@@ -177,6 +179,7 @@ struct TextEditorContainer: NSViewRepresentable {
             to: webView,
             text: text,
             font: font,
+            cssFontFamily: cssFontFamily,
             isWordWrapEnabled: isWordWrapEnabled
         )
     }
@@ -317,6 +320,7 @@ struct TextEditorContainer: NSViewRepresentable {
                 to: webView,
                 text: text,
                 font: .monospacedSystemFont(ofSize: 14, weight: .regular),
+                cssFontFamily: "\"Menlo\", \"Myanmar Sangam MN\", \"Myanmar MN\", -apple-system, sans-serif",
                 isWordWrapEnabled: false,
                 force: true
             )
@@ -341,13 +345,20 @@ struct TextEditorContainer: NSViewRepresentable {
             }
         }
 
-        func applyStateIfNeeded(to webView: WKWebView, text: String, font: NSFont, isWordWrapEnabled: Bool, force: Bool = false) {
+        func applyStateIfNeeded(
+            to webView: WKWebView,
+            text: String,
+            font: NSFont,
+            cssFontFamily: String,
+            isWordWrapEnabled: Bool,
+            force: Bool = false
+        ) {
             guard pageLoaded else { return }
 
             let state = RenderState(
                 text: text,
                 preferences: RenderPreferences(
-                    fontFamily: font.fontName,
+                    fontFamily: cssFontFamily,
                     fontSize: Double(font.pointSize),
                     wordWrap: isWordWrapEnabled
                 )

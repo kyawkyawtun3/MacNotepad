@@ -31,13 +31,44 @@ struct WorkspaceRootView: View {
             .environmentObject(workspace)
             .background(WindowAccessor(workspace: workspace))
             .focusedSceneObject(workspace)
+            .task {
+                appDelegateDeliverPendingFiles()
+            }
+    }
+
+    @MainActor
+    private func appDelegateDeliverPendingFiles() {
+        guard let appDelegate = NSApp.delegate as? AppDelegate else { return }
+        appDelegate.deliverPendingFiles(to: workspace)
     }
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var pendingOpenFileURLs: [URL] = []
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func application(_ sender: NSApplication, openFiles filenames: [String]) {
+        let urls = filenames.map { URL(fileURLWithPath: $0) }
+
+        if let workspace = WorkspaceRegistry.shared.workspaces.first {
+            urls.forEach { workspace.openDocument(at: $0) }
+        } else {
+            pendingOpenFileURLs.append(contentsOf: urls)
+        }
+
+        sender.reply(toOpenOrPrint: .success)
+    }
+
+    @MainActor
+    func deliverPendingFiles(to workspace: WorkspaceController) {
+        guard !pendingOpenFileURLs.isEmpty else { return }
+        let urls = pendingOpenFileURLs
+        pendingOpenFileURLs.removeAll()
+        urls.forEach { workspace.openDocument(at: $0) }
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
