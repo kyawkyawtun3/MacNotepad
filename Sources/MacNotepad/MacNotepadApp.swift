@@ -31,15 +31,6 @@ struct WorkspaceRootView: View {
             .environmentObject(workspace)
             .background(WindowAccessor(workspace: workspace))
             .focusedSceneObject(workspace)
-            .task {
-                appDelegateDeliverPendingFiles()
-            }
-    }
-
-    @MainActor
-    private func appDelegateDeliverPendingFiles() {
-        guard let appDelegate = NSApp.delegate as? AppDelegate else { return }
-        appDelegate.deliverPendingFiles(to: workspace)
     }
 }
 
@@ -52,15 +43,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func application(_ sender: NSApplication, openFiles filenames: [String]) {
-        let urls = filenames.map { URL(fileURLWithPath: $0) }
+        enqueueOrDeliver(filenames.map { URL(fileURLWithPath: $0) })
+        sender.reply(toOpenOrPrint: .success)
+    }
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        enqueueOrDeliver(urls)
+    }
+
+    @MainActor
+    private func enqueueOrDeliver(_ urls: [URL]) {
+        guard !urls.isEmpty else { return }
 
         if let workspace = WorkspaceRegistry.shared.workspaces.first {
             urls.forEach { workspace.openDocument(at: $0) }
         } else {
             pendingOpenFileURLs.append(contentsOf: urls)
         }
-
-        sender.reply(toOpenOrPrint: .success)
     }
 
     @MainActor

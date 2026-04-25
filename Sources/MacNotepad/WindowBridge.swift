@@ -115,6 +115,10 @@ final class WorkspaceRegistry {
     func register(_ workspace: WorkspaceController) {
         cleanup()
         entries.append(Entry(workspace: workspace))
+
+        if let appDelegate = NSApp.delegate as? AppDelegate {
+            appDelegate.deliverPendingFiles(to: workspace)
+        }
     }
 
     func unregister(_ workspace: WorkspaceController) {
